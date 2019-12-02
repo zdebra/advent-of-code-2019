@@ -30,14 +30,14 @@ func TestModule_FuelRequiredToLaunch(t *testing.T) {
 			fields: fields{
 				Mass: 1969,
 			},
-			want:   654,
+			want:   966,
 		},
 		{
 			name:   "example 4",
 			fields: fields{
 				Mass: 100756,
 			},
-			want:   33583,
+			want:   50346,
 		},
 	}
 	for _, tt := range tests {

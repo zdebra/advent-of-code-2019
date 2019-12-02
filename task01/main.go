@@ -15,7 +15,16 @@ type Module struct {
 }
 
 func (m Module) FuelRequiredToLaunch() float64 {
-	return math.Trunc(	m.Mass / 3 ) - 2
+	calc := func(inp float64) float64 {
+		return math.Trunc(	inp / 3 ) - 2
+	}
+
+	var total float64
+	tmp := calc(m.Mass)
+	for ; tmp > 0; tmp = calc(tmp) {
+		total += tmp
+	}
+	return total
 }
 
 type Fleet []Module
