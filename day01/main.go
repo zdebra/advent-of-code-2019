@@ -51,7 +51,7 @@ func calculateFleetFuel(r io.Reader) (float64, error) {
 }
 
 func main() {
-	f, err := os.Open("task01/input")
+	f, err := os.Open("day01/input")
 	panicOnErr(err)
 
 	fleetFuel, err := calculateFleetFuel(f)
