@@ -20,14 +20,16 @@ type point struct {
 	X, Y int
 }
 
-func safeSet(panel map[int]map[int]struct{}, pos point) {
+type panel map[int]map[int]int
+
+func safeSet(panel panel, pos point, steps int) {
 	if _, found := panel[pos.X]; !found {
-		panel[pos.X] = map[int]struct{}{}
+		panel[pos.X] = map[int]int{}
 	}
-	panel[pos.X][pos.Y] = struct{}{}
+	panel[pos.X][pos.Y] = steps
 }
 
-func mark(panel map[int]map[int]struct{}, lastPos point, cmd string) point {
+func mark(panel panel, lastPos point, cmd string, steps int) (point, int) {
 	delta, err := strconv.Atoi(cmd[1:])
 	if err != nil {
 		panic(err)
@@ -37,38 +39,44 @@ func mark(panel map[int]map[int]struct{}, lastPos point, cmd string) point {
 	case cmdRight:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X+i, lastPos.Y
-			safeSet(panel, point{x, y})
+			safeSet(panel, point{x, y}, steps)
+			steps++
 		}
 	case cmdLeft:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X-i, lastPos.Y
-			safeSet(panel, point{x, y})
+			safeSet(panel, point{x, y}, steps)
+			steps++
 		}
 	case cmdUp:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X, lastPos.Y+i
-			safeSet(panel, point{x, y})
+			safeSet(panel, point{x, y}, steps)
+			steps++
 		}
 	case cmdDown:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X, lastPos.Y-i
-			safeSet(panel, point{x, y})
+			safeSet(panel, point{x, y}, steps)
+			steps++
 		}
 	default:
 		panic(fmt.Sprintf("unsupported cmd %s", string(cmd[0])))
 	}
-	return point{x, y}
+	steps--
+	return point{x, y}, steps
 }
 
-func intersect(markedPanel map[int]map[int]struct{}, lastPos point, cmd string) ([]point, point) {
-	intersections := []point{}
-	u := func(x, y int) {
+func intersect(markedPanel panel, lastPos point, cmd string, steps int) ([]int, point, int) {
+	intersectSteps := []int{}
+	u := func(x, y, steps int) {
 		if x == 0 && y == 0 {
 			return
 		}
 		if _, foundX := markedPanel[x]; foundX {
 			if _, foundY := markedPanel[x][y]; foundY {
-				intersections = append(intersections, point{x, y})
+				wireASteps, wireBSteps := markedPanel[x][y], steps
+				intersectSteps = append(intersectSteps, wireASteps+wireBSteps)
 			}
 		}
 	}
@@ -82,34 +90,39 @@ func intersect(markedPanel map[int]map[int]struct{}, lastPos point, cmd string) 
 	case cmdRight:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X+i, lastPos.Y
-			u(x, y)
+			u(x, y, steps)
+			steps++
 		}
 	case cmdLeft:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X-i, lastPos.Y
-			u(x, y)
+			u(x, y, steps)
+			steps++
 		}
 	case cmdUp:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X, lastPos.Y+i
-			u(x, y)
+			u(x, y, steps)
+			steps++
 		}
 	case cmdDown:
 		for i := 0; i <= delta; i++ {
 			x, y = lastPos.X, lastPos.Y-i
-			u(x, y)
+			u(x, y, steps)
+			steps++
 		}
 	default:
 		panic(fmt.Sprintf("unsupported cmd %s", string(cmd[0])))
 	}
-	return intersections, point{x, y}
+	steps--
+	return intersectSteps, point{x, y}, steps
 }
 
 func distance(p1, p2 point) float64 {
 	return math.Abs(float64(p1.X)-float64(p2.X)) + math.Abs(float64(p1.Y)-float64(p2.Y))
 }
 
-func printPanel(panel map[int]map[int]struct{}) {
+func printPanel(panel panel) {
 	s := 30
 	for i := -s; i < s; i++ {
 		for j := -s; j < s; j++ {
@@ -145,36 +158,30 @@ func main() {
 	sc.Scan()
 	wireBCommands := strings.Split(sc.Text(), ",")
 
-	wireA := map[int]map[int]struct{}{}
+	wireA := panel{}
 	lastPos := point{0, 0}
-	safeSet(wireA, lastPos)
+	safeSet(wireA, lastPos, 0)
+	steps := 0
 	for _, cmd := range wireACommands {
-		lastPos = mark(wireA, lastPos, cmd)
+		lastPos, steps = mark(wireA, lastPos, cmd, steps)
 	}
 
-	//printPanel(wireA)
-
 	lastPos = point{0, 0}
-	intersections := []point{}
+	intersections := []int{}
+	steps = 0
 	for _, cmd := range wireBCommands {
-		var intersectionsPart []point
-		intersectionsPart, lastPos = intersect(wireA, lastPos, cmd)
+		var intersectionsPart []int
+		intersectionsPart, lastPos, steps = intersect(wireA, lastPos, cmd, steps)
 		intersections = append(intersections, intersectionsPart...)
 	}
 
-	fmt.Println(intersections)
-
-	start := point{0, 0}
-	closest := intersections[0]
-	closestDistance := distance(start, closest)
+	leastSteps := intersections[0]
 	for i := 1; i < len(intersections); i++ {
-		d := distance(start, intersections[i])
-		if d < closestDistance {
-			closest = intersections[i]
-			closestDistance = d
+		if intersections[i] < leastSteps {
+			leastSteps = intersections[i]
 		}
 	}
 
-	fmt.Printf("closest intersection is (%d,%d) with len from start %f\n", closest.X, closest.Y, closestDistance)
+	fmt.Println(leastSteps)
 
 }
