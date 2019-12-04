@@ -7,15 +7,18 @@ import (
 
 type testFunc func(int) bool
 
-// At least two adjacent digits are the same (like 22 in 122345)
+// two adjacent digits are the same (like 22 in 122345)
+// 111122 meets the criteria (even though 1 is repeated more than twice, it still contains a double 22).
 func adjacentDigits(n int) bool {
 	nStr := strconv.Itoa(n)
-	prev := nStr[0]
-	for i := 1; i < len(nStr); i++ {
-		if nStr[i] == prev {
+	cnt := map[uint8]int{}
+	for i := 0; i < len(nStr); i++ {
+		cnt[nStr[i]]++
+	}
+	for _, count := range cnt {
+		if count == 2 {
 			return true
 		}
-		prev = nStr[i]
 	}
 	return false
 }
