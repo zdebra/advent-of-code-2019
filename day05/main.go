@@ -35,25 +35,29 @@ func (p program) Len() int {
 type instruction int
 
 const (
-	add      instruction = 1
-	multiply instruction = 2
-	input    instruction = 3
-	output   instruction = 4
-	halt     instruction = 99
+	add instruction = iota + 1
+	multiply
+	input
+	output
+	jumpIfTrue
+	jumpIfFalse
+	lessThan
+	equals
+	halt instruction = 99
 )
 
 func (i instruction) size() int {
 	switch i {
-	case add:
+	case add, multiply, lessThan, equals:
 		return 4
-	case multiply:
-		return 4
-	case input:
+	case jumpIfTrue, jumpIfFalse:
+		return 3
+	case input, output:
 		return 2
-	case output:
-		return 2
+	case halt:
+		return 1
 	default:
-		panic("unsupported instruction")
+		panic(fmt.Sprintf("unsupported instruction %d", i))
 	}
 }
 
@@ -73,6 +77,10 @@ func (p *program) run(ip int) {
 		return
 	}
 	opcode, modes := decodeInstruction(p.Read(ip, MI))
+	if opcode == halt {
+		return
+	}
+	nextIp := ip + opcode.size()
 	switch opcode {
 	case add:
 		p.Write(p.Read(ip+3, MI), p.Read(ip+1, modes[0])+p.Read(ip+2, modes[1]))
@@ -83,18 +91,42 @@ func (p *program) run(ip int) {
 	case output:
 		p.output = p.Read(ip+1, MP)
 		fmt.Println("outputting!", p.output)
+	case jumpIfTrue:
+		if p.Read(ip+1, modes[0]) != 0 {
+			nextIp = p.Read(ip+2, modes[1])
+		}
+	case jumpIfFalse:
+		if p.Read(ip+1, modes[0]) == 0 {
+			nextIp = p.Read(ip+2, modes[1])
+		}
+	case lessThan:
+		p1 := p.Read(ip+1, modes[0])
+		p2 := p.Read(ip+2, modes[1])
+		result := 0
+		if p1 < p2 {
+			result = 1
+		}
+		p.Write(p.Read(ip+3, MI), result)
+	case equals:
+		p1 := p.Read(ip+1, modes[0])
+		p2 := p.Read(ip+2, modes[1])
+		result := 0
+		if p1 == p2 {
+			result = 1
+		}
+		p.Write(p.Read(ip+3, MI), result)
 	case halt:
 		return
 	default:
 		panic(fmt.Sprintf("unsupported opcode %d", opcode))
 	}
-	p.run(ip + opcode.size())
+	p.run(nextIp)
 }
 
 func main() {
 	p := program{
 		memory: startingMemory,
-		input:  1,
+		input:  5,
 	}
 
 	p.run(0)
