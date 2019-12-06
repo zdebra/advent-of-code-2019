@@ -11,6 +11,20 @@ type node struct {
 	parent   *node
 	children []*node
 	id       string
+	visited  bool
+}
+
+func (n *node) notVisitedNeighbors() []*node {
+	nv := make([]*node, 0, len(n.children)+1)
+	if n.parent != nil && !n.parent.visited {
+		nv = append(nv, n.parent)
+	}
+	for _, ch := range n.children {
+		if !ch.visited {
+			nv = append(nv, ch)
+		}
+	}
+	return nv
 }
 
 func newNode(id string) *node {
@@ -43,13 +57,22 @@ func main() {
 		nodes[a].children = append(nodes[a].children, nodes[b])
 	}
 
-	curNode, found := nodes["COM"]
-	if !found {
-		panic("COM not found")
-	}
+	you, san := nodes["YOU"], nodes["SAN"]
+	start := you.parent
+	finish := san.parent
 
-	total := step(curNode, 0)
-	fmt.Println(total)
+	findNode(finish.id, start.notVisitedNeighbors(), 0)
+}
+
+func findNode(finishID string, in []*node, cnt int) {
+	cnt++
+	for _, n := range in {
+		if n.id == finishID {
+			fmt.Printf("found finish in %d steps\n", cnt)
+		}
+		n.visited = true
+		findNode(finishID, n.notVisitedNeighbors(), cnt)
+	}
 }
 
 func step(curNode *node, cnt int) int {
