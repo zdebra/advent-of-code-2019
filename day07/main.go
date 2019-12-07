@@ -22,11 +22,12 @@ const (
 
 type program struct {
 	memory []int
-	input  programInput
+	input  *programInput
 	output int
+	ip     int
 }
 
-func (p program) Read(pos int, mode int) int {
+func (p *program) Read(pos int, mode int) int {
 	switch mode {
 	case MP:
 		return p.memory[p.memory[pos]]
@@ -37,11 +38,11 @@ func (p program) Read(pos int, mode int) int {
 	}
 }
 
-func (p program) Write(pos, value int) {
+func (p *program) Write(pos, value int) {
 	p.memory[pos] = value
 }
 
-func (p program) Len() int {
+func (p *program) Len() int {
 	return len(p.memory)
 }
 
@@ -85,55 +86,55 @@ func decodeInstruction(code int) (instruction, [3]int) {
 	return instruction(opcode), modes
 }
 
-func (p *program) run(ip int) {
-	if ip > p.Len() {
-		return
+func (p *program) run() bool {
+	if p.ip > p.Len() {
+		return false
 	}
-	opcode, modes := decodeInstruction(p.Read(ip, MI))
+	opcode, modes := decodeInstruction(p.Read(p.ip, MI))
 	if opcode == halt {
-		return
+		return true
 	}
-	nextIp := ip + opcode.size()
+	nextIp := p.ip + opcode.size()
 	switch opcode {
 	case add:
-		p.Write(p.Read(ip+3, MI), p.Read(ip+1, modes[0])+p.Read(ip+2, modes[1]))
+		p.Write(p.Read(p.ip+3, MI), p.Read(p.ip+1, modes[0])+p.Read(p.ip+2, modes[1]))
 	case multiply:
-		p.Write(p.Read(ip+3, MI), p.Read(ip+1, modes[0])*p.Read(ip+2, modes[1]))
+		p.Write(p.Read(p.ip+3, MI), p.Read(p.ip+1, modes[0])*p.Read(p.ip+2, modes[1]))
 	case input:
-		p.Write(p.Read(ip+1, MI), p.input.read())
+		p.Write(p.Read(p.ip+1, MI), p.input.read())
 	case output:
-		p.output = p.Read(ip+1, MP)
-		//fmt.Println("outputting!", p.output)
+		p.output = p.Read(p.ip+1, MP)
+		p.ip = nextIp
+		return false
 	case jumpIfTrue:
-		if p.Read(ip+1, modes[0]) != 0 {
-			nextIp = p.Read(ip+2, modes[1])
+		if p.Read(p.ip+1, modes[0]) != 0 {
+			nextIp = p.Read(p.ip+2, modes[1])
 		}
 	case jumpIfFalse:
-		if p.Read(ip+1, modes[0]) == 0 {
-			nextIp = p.Read(ip+2, modes[1])
+		if p.Read(p.ip+1, modes[0]) == 0 {
+			nextIp = p.Read(p.ip+2, modes[1])
 		}
 	case lessThan:
-		p1 := p.Read(ip+1, modes[0])
-		p2 := p.Read(ip+2, modes[1])
+		p1 := p.Read(p.ip+1, modes[0])
+		p2 := p.Read(p.ip+2, modes[1])
 		result := 0
 		if p1 < p2 {
 			result = 1
 		}
-		p.Write(p.Read(ip+3, MI), result)
+		p.Write(p.Read(p.ip+3, MI), result)
 	case equals:
-		p1 := p.Read(ip+1, modes[0])
-		p2 := p.Read(ip+2, modes[1])
+		p1 := p.Read(p.ip+1, modes[0])
+		p2 := p.Read(p.ip+2, modes[1])
 		result := 0
 		if p1 == p2 {
 			result = 1
 		}
-		p.Write(p.Read(ip+3, MI), result)
-	case halt:
-		return
+		p.Write(p.Read(p.ip+3, MI), result)
 	default:
 		panic(fmt.Sprintf("unsupported opcode %d", opcode))
 	}
-	p.run(nextIp)
+	p.ip = nextIp
+	return p.run()
 }
 
 func programChain(initInput int, phaseSetting []int) int {
@@ -141,25 +142,50 @@ func programChain(initInput int, phaseSetting []int) int {
 	for _, phase := range phaseSetting {
 		p := program{
 			memory: startingMemory(),
-			input: programInput{
+			input: &programInput{
 				m: [2]int{phase, previousPhaseOutput},
 			},
 		}
-		p.run(0)
+		p.run()
 		previousPhaseOutput = p.output
 	}
 	return previousPhaseOutput
 }
 
+func programLoop(initInput int, phaseSetting []int) int {
+	programs := make([]*program, 5)
+	// init programs
+	for i, phase := range phaseSetting {
+		programs[i] = &program{
+			memory: startingMemory(),
+			input: &programInput{
+				m: [2]int{phase},
+			},
+		}
+	}
+
+	// loop until halt
+	previousPhaseOutput := initInput
+	halted := false
+	for !halted {
+		for _, prg := range programs {
+			prg.input.m[1] = previousPhaseOutput
+			halted = prg.run()
+			previousPhaseOutput = prg.output
+		}
+	}
+	return programs[4].output
+}
+
 func main() {
-	maxInput := splitInt(0)
-	max := programChain(0, maxInput)
-	for i := 1; i < 44445; i++ {
+	maxInput := splitInt(56789)
+	max := programLoop(0, maxInput)
+	for i := 0; i <= 99999; i++ {
 		curInp := splitInt(i)
 		if !matchCriteria(curInp) {
 			continue
 		}
-		curOutput := programChain(0, curInp)
+		curOutput := programLoop(0, curInp)
 		if curOutput > max {
 			max = curOutput
 			maxInput = curInp
@@ -170,7 +196,13 @@ func main() {
 
 func matchCriteria(inp []int) bool {
 	for i := 0; i < len(inp); i++ {
+		if inp[i] < 5 {
+			return false
+		}
 		for j := i + 1; j < len(inp); j++ {
+			if inp[j] < 5 {
+				return false
+			}
 			if inp[i] == inp[j] {
 				return false
 			}
